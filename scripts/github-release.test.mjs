@@ -65,6 +65,20 @@ const sampleAssets = [
   },
 ]
 
+const draftReleaseAssets = [
+  {
+    name: 'MCP.Manager_0.1.4_amd64.AppImage',
+    browser_download_url:
+      'https://github.com/xjeway/mcp-manager/releases/download/untagged-759504866afea297577f/MCP.Manager_0.1.4_amd64.AppImage',
+  },
+  {
+    name: 'MCP.Manager_0.1.4_amd64.AppImage.sig',
+    browser_download_url:
+      'https://github.com/xjeway/mcp-manager/releases/download/untagged-759504866afea297577f/MCP.Manager_0.1.4_amd64.AppImage.sig',
+    signature: 'sig-linux-x64-appimage',
+  },
+]
+
 describe('github release updater manifest', () => {
   it('classifies updater entries across supported platforms', async () => {
     const helpers = await loadReleaseHelpers()
@@ -153,5 +167,24 @@ describe('github release updater manifest', () => {
       signature: 'sig-windows-arm64-nsis',
       url: 'https://example.invalid/MCP.Manager_0.1.2_arm64-setup.exe',
     })
+  })
+
+  it('prefers stable tag download URLs over draft asset browser URLs', async () => {
+    const helpers = await loadReleaseHelpers()
+
+    expect(helpers).not.toBeNull()
+
+    const entries = helpers.collectUpdaterEntries(draftReleaseAssets, {
+      owner: 'xjeway',
+      repo: 'mcp-manager',
+      tagName: 'v0.1.4',
+    })
+
+    expect(entries).toEqual([
+      expect.objectContaining({
+        assetName: 'MCP.Manager_0.1.4_amd64.AppImage',
+        url: 'https://github.com/xjeway/mcp-manager/releases/download/v0.1.4/MCP.Manager_0.1.4_amd64.AppImage',
+      }),
+    ])
   })
 })

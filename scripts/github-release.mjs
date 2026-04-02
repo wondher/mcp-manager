@@ -7,6 +7,7 @@ import { isPrereleaseRef } from './release-args.mjs'
 
 const apiBaseUrl = (process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '')
 const uploadsBaseUrl = 'https://uploads.github.com'
+const serverBaseUrl = (process.env.GITHUB_SERVER_URL || 'https://github.com').replace(/\/$/, '')
 const apiVersion = '2022-11-28'
 
 const installerDefinitions = [
@@ -185,7 +186,22 @@ function parseSignatureAsset(assetName) {
   return null
 }
 
-export function collectUpdaterEntries(assets) {
+export function buildReleaseAssetDownloadUrl({
+  owner,
+  repo,
+  tagName,
+  assetName,
+  fallbackUrl,
+  serverUrl = serverBaseUrl,
+}) {
+  if (!owner || !repo || !tagName || !assetName) {
+    return fallbackUrl
+  }
+
+  return `${serverUrl}/${owner}/${repo}/releases/download/${encodeURIComponent(tagName)}/${encodeURIComponent(assetName)}`
+}
+
+export function collectUpdaterEntries(assets, releaseContext = {}) {
   const assetsByName = new Map(assets.map((asset) => [asset.name, asset]))
   const entries = []
 
@@ -206,7 +222,14 @@ export function collectUpdaterEntries(assets) {
 
     entries.push({
       ...parsed,
-      url: bundleAsset.browser_download_url,
+      url: buildReleaseAssetDownloadUrl({
+        owner: releaseContext.owner,
+        repo: releaseContext.repo,
+        tagName: releaseContext.tagName,
+        assetName: bundleAsset.name,
+        fallbackUrl: bundleAsset.browser_download_url,
+        serverUrl: releaseContext.serverUrl,
+      }),
       signature: asset.signature,
     })
   }
@@ -349,7 +372,11 @@ async function uploadUpdaterManifest(releaseId) {
     }),
   )
 
-  const entries = collectUpdaterEntries(hydratedAssets)
+  const entries = collectUpdaterEntries(hydratedAssets, {
+    owner,
+    repo,
+    tagName: release.tag_name,
+  })
   const version = release.tag_name.replace(/^v/, '')
   const notes = release.body ?? ''
   const pubDate = release.published_at ?? new Date().toISOString()
