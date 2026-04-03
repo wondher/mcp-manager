@@ -1,0 +1,17 @@
+{
+  "name": "release-publisher",
+  "version": "0.1.0",
+  "description": "Publishes MCP Manager releases end-to-end with automatic patch bumps by default.",
+  "author": {
+    "name": "MCP Manager"
+  },
+  "repository": "https://github.com/xjeway/mcp-manager",
+  "license": "MIT",
+  "keywords": [
+    "release",
+    "tauri",
+    "github-actions",
+    "publishing"
+  ],
+  "skills": "./skills/"
+}

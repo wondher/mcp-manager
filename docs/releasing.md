@@ -116,6 +116,27 @@ The workflow intentionally uploads `latest.json` only after every platform build
 
 ## Release Process
 
+Default automated path:
+
+```bash
+python3 plugins/release-publisher/scripts/publish_release.py
+```
+
+This repository now ships a repo-local Codex release plugin and a deterministic Python release command. The default command:
+
+- requires a clean working tree on `main`
+- reads the current project version and bumps the next patch version automatically
+- runs `make release-prepare`
+- commits and pushes the release bump
+- runs `make release-publish`
+- waits for the `Release` GitHub Actions workflow
+- publishes the draft GitHub Release
+- verifies `releases/latest/download/latest.json`
+
+Use `--version x.y.z` when you do not want the next patch version, and use `--dry-run` when you only want to resolve the next version and repository context.
+
+Manual fallback:
+
 1. Prepare the release locally:
 
    ```bash
@@ -137,6 +158,8 @@ The workflow intentionally uploads `latest.json` only after every platform build
 ## Version Sync And Tagging
 
 This repository includes a small release helper script so you do not need to edit multiple version files by hand.
+
+The automated Python release command is the recommended default. The `make` and `npm` commands below remain available when you want tighter manual control over version sync, verification, or tagging.
 
 Show current versions:
 
