@@ -160,11 +160,14 @@ pub fn detect_installed_apps() -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
-pub fn apply_config(config: MCPConfig) -> Result<ApplyResult, String> {
+pub fn apply_config(
+    config: MCPConfig,
+    previous_config: Option<MCPConfig>,
+) -> Result<ApplyResult, String> {
     let ctx = PlatformContext::current();
     let operations = adapters()
         .into_iter()
-        .map(|adapter| adapter.plan_apply(&ctx, &config))
+        .map(|adapter| adapter.plan_apply(&ctx, &config, previous_config.as_ref()))
         .collect::<Vec<_>>();
 
     for operation in &operations {
@@ -184,4 +187,10 @@ pub fn apply_config(config: MCPConfig) -> Result<ApplyResult, String> {
 #[tauri::command]
 pub fn rollback_from_backups(backups: Vec<String>) -> Result<(), String> {
     rollback(backups)
+}
+
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
+    app.request_restart();
+    Ok(())
 }

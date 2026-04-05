@@ -13,12 +13,12 @@ describe('SettingsPage', () => {
     const html = renderToStaticMarkup(
       <SettingsPage
         appVersion="9.9.9"
-        autoSyncOnLaunch
+        autoImportOnLaunch
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
-        onAutoSyncOnLaunchChange={() => {}}
+        onAutoImportOnLaunchChange={() => {}}
         theme="system"
         onBack={() => {}}
         onCheckUpdates={() => {}}
@@ -29,20 +29,20 @@ describe('SettingsPage', () => {
 
     expect(html).not.toContain('settingsDetectedClients')
     expect(html).not.toContain('settingsDetectedClientsHelp')
-    expect(html).not.toContain('settingsAutoSyncOnLaunchHelp')
-    expect(html).toContain('settingsAutoSyncOnLaunch')
+    expect(html).not.toContain('settingsAutoImportOnLaunchHelp')
+    expect(html).toContain('settingsAutoImportOnLaunch')
   })
 
   it('renders settings icons and compact control hooks', () => {
     const html = renderToStaticMarkup(
       <SettingsPage
         appVersion="9.9.9"
-        autoSyncOnLaunch
+        autoImportOnLaunch
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
-        onAutoSyncOnLaunchChange={() => {}}
+        onAutoImportOnLaunchChange={() => {}}
         theme="system"
         onBack={() => {}}
         onCheckUpdates={() => {}}
@@ -64,12 +64,12 @@ describe('SettingsPage', () => {
     const html = renderToStaticMarkup(
       <SettingsPage
         appVersion="9.9.9"
-        autoSyncOnLaunch
+        autoImportOnLaunch
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
-        onAutoSyncOnLaunchChange={() => {}}
+        onAutoImportOnLaunchChange={() => {}}
         theme="system"
         onBack={() => {}}
         onCheckUpdates={() => {}}
@@ -87,12 +87,12 @@ describe('SettingsPage', () => {
     const html = renderToStaticMarkup(
       <SettingsPage
         appVersion="2.3.4"
-        autoSyncOnLaunch
+        autoImportOnLaunch
         busy={false}
         checkingUpdates={false}
         language="zh-CN"
         onOpenRepository={() => {}}
-        onAutoSyncOnLaunchChange={() => {}}
+        onAutoImportOnLaunchChange={() => {}}
         theme="system"
         onBack={() => {}}
         onCheckUpdates={() => {}}
@@ -109,12 +109,12 @@ describe('SettingsPage', () => {
     const html = renderToStaticMarkup(
       <SettingsPage
         appVersion="2.3.4"
-        autoSyncOnLaunch
+        autoImportOnLaunch
         busy={false}
         checkingUpdates
         language="zh-CN"
         onOpenRepository={() => {}}
-        onAutoSyncOnLaunchChange={() => {}}
+        onAutoImportOnLaunchChange={() => {}}
         theme="system"
         onBack={() => {}}
         onCheckUpdates={() => {}}

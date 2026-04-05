@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { persistImportedConfig, saveAndSyncConfig } from './workspacePersistence'
+import { importConfigOnLaunch, persistImportedConfig, saveAndSyncConfig } from './workspacePersistence'
 
 const previousConfig = {
   version: 1,
@@ -57,7 +57,7 @@ describe('workspacePersistence', () => {
     expect(saveConfig).toHaveBeenCalledTimes(1)
     expect(saveConfig).toHaveBeenNthCalledWith(1, nextConfig)
     expect(applyConfig).toHaveBeenCalledTimes(1)
-    expect(applyConfig).toHaveBeenNthCalledWith(1, nextConfig)
+    expect(applyConfig).toHaveBeenNthCalledWith(1, nextConfig, previousConfig)
   })
 
   it('restores the previous config when apply fails after saving', async () => {
@@ -85,5 +85,37 @@ describe('workspacePersistence', () => {
 
     expect(saveConfig).toHaveBeenCalledTimes(1)
     expect(saveConfig).toHaveBeenCalledWith(nextConfig)
+  })
+
+  it('imports detected configs on launch when auto-sync is enabled', async () => {
+    const importResult = {
+      config: nextConfig,
+      sources: [],
+      warnings: [],
+      errors: [],
+    }
+    const importDetectedConfigs = vi.fn().mockResolvedValue(importResult)
+
+    await expect(
+      importConfigOnLaunch({
+        autoImportOnLaunch: true,
+        importDetectedConfigs,
+      }),
+    ).resolves.toEqual(importResult)
+
+    expect(importDetectedConfigs).toHaveBeenCalledTimes(1)
+  })
+
+  it('skips launch import when auto-sync is disabled', async () => {
+    const importDetectedConfigs = vi.fn()
+
+    await expect(
+      importConfigOnLaunch({
+        autoImportOnLaunch: false,
+        importDetectedConfigs,
+      }),
+    ).resolves.toBeNull()
+
+    expect(importDetectedConfigs).not.toHaveBeenCalled()
   })
 })

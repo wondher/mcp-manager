@@ -57,7 +57,9 @@ impl PlatformContext {
 
     pub fn app_data_dir(&self) -> PathBuf {
         match self.os {
-            PlatformOs::MacOS => self.home_dir.join("Library/Application Support/mcp-manager"),
+            PlatformOs::MacOS => self
+                .home_dir
+                .join("Library/Application Support/mcp-manager"),
             PlatformOs::Windows => self.home_dir.join("AppData/Roaming/mcp-manager"),
             PlatformOs::Linux | PlatformOs::Unknown => self.home_dir.join(".config/mcp-manager"),
         }
@@ -265,7 +267,9 @@ impl PlatformContext {
             | SupportedApp::GeminiCli
             | SupportedApp::Antigravity
             | SupportedApp::QwenCode
-            | SupportedApp::Cline => vec![self.user_app_config_path(app).to_string_lossy().to_string()],
+            | SupportedApp::Cline => {
+                vec![self.user_app_config_path(app).to_string_lossy().to_string()]
+            }
             SupportedApp::GithubCopilot => vec![
                 self.workspace_file(".vscode/mcp.json")
                     .to_string_lossy()
@@ -526,8 +530,11 @@ mod tests {
             r#"{"mcpServers":{}}"#,
         )
         .expect("write cline config");
-        std::fs::write(home.join(".copilot/mcp-config.json"), r#"{"mcpServers":{}}"#)
-            .expect("write copilot config");
+        std::fs::write(
+            home.join(".copilot/mcp-config.json"),
+            r#"{"mcpServers":{}}"#,
+        )
+        .expect("write copilot config");
         std::env::set_var("PATH", "");
         std::env::set_var("MCP_MANAGER_SKIP_GLOBAL_COMMAND_DIRS", "1");
 

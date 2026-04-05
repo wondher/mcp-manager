@@ -1,17 +1,17 @@
-const AUTO_SYNC_ON_LAUNCH_KEY = 'ui-auto-sync-on-launch'
+const AUTO_IMPORT_ON_LAUNCH_KEY = 'ui-auto-sync-on-launch'
 
-export function readAutoSyncOnLaunchPreference(): boolean {
+export function readAutoImportOnLaunchPreference(): boolean {
   if (typeof window === 'undefined') {
     return true
   }
 
-  return window.localStorage.getItem(AUTO_SYNC_ON_LAUNCH_KEY) !== 'false'
+  return window.localStorage.getItem(AUTO_IMPORT_ON_LAUNCH_KEY) !== 'false'
 }
 
-export function saveAutoSyncOnLaunchPreference(enabled: boolean): void {
+export function saveAutoImportOnLaunchPreference(enabled: boolean): void {
   if (typeof window === 'undefined') {
     return
   }
 
-  window.localStorage.setItem(AUTO_SYNC_ON_LAUNCH_KEY, String(enabled))
+  window.localStorage.setItem(AUTO_IMPORT_ON_LAUNCH_KEY, String(enabled))
 }

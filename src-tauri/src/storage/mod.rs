@@ -125,6 +125,56 @@ fn apply_merge_json_field(path: &PathBuf, field: &str, content: &str) -> Result<
     atomic_write(path, &pretty)
 }
 
+fn apply_merge_json_object_entries(
+    path: &PathBuf,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
+    let Some(new_entries) = field_value.as_object() else {
+        return Err(format!("{field} merge content must be a JSON object"));
+    };
+
+    let existing = if path.exists() {
+        fs::read_to_string(path).map_err(|e| e.to_string())?
+    } else {
+        "{}".to_string()
+    };
+    let mut host =
+        serde_json::from_str::<Value>(&existing).unwrap_or_else(|_| Value::Object(Map::new()));
+    let Some(host_map) = host.as_object_mut() else {
+        return Err(format!(
+            "{} does not contain a JSON object",
+            path.to_string_lossy()
+        ));
+    };
+
+    let field_entry = host_map
+        .entry(field.to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    let Some(target_map) = field_entry.as_object_mut() else {
+        return Err(format!(
+            "{} field {} does not contain a JSON object",
+            path.to_string_lossy(),
+            field
+        ));
+    };
+
+    if let Some(keys) = remove_keys {
+        for key in keys {
+            target_map.remove(key);
+        }
+    }
+
+    for (key, value) in new_entries {
+        target_map.insert(key.clone(), value.clone());
+    }
+
+    let pretty = serde_json::to_string_pretty(&host).map_err(|e| e.to_string())?;
+    atomic_write(path, &pretty)
+}
+
 fn apply_merge_toml_field(path: &PathBuf, field: &str, content: &str) -> Result<(), String> {
     let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
     let existing = if path.exists() {
@@ -138,6 +188,53 @@ fn apply_merge_toml_field(path: &PathBuf, field: &str, content: &str) -> Result<
         toml::from_str(&existing).map_err(|e| e.to_string())?
     };
     host.insert(field.to_string(), json_value_to_toml(&field_value)?);
+    let rendered = toml::to_string_pretty(&host).map_err(|e| e.to_string())?;
+    atomic_write(path, &rendered)
+}
+
+fn apply_merge_toml_table_entries(
+    path: &PathBuf,
+    field: &str,
+    content: &str,
+    remove_keys: Option<&[String]>,
+) -> Result<(), String> {
+    let field_value: Value = serde_json::from_str(content).map_err(|e| e.to_string())?;
+    let Some(new_entries) = field_value.as_object() else {
+        return Err(format!("{field} merge content must be a JSON object"));
+    };
+
+    let existing = if path.exists() {
+        fs::read_to_string(path).map_err(|e| e.to_string())?
+    } else {
+        String::new()
+    };
+    let mut host: Table = if existing.trim().is_empty() {
+        Table::new()
+    } else {
+        toml::from_str(&existing).map_err(|e| e.to_string())?
+    };
+
+    let field_entry = host
+        .entry(field.to_string())
+        .or_insert_with(|| toml::Value::Table(Table::new()));
+    let Some(target_table) = field_entry.as_table_mut() else {
+        return Err(format!(
+            "{} field {} does not contain a TOML table",
+            path.to_string_lossy(),
+            field
+        ));
+    };
+
+    if let Some(keys) = remove_keys {
+        for key in keys {
+            target_table.remove(key);
+        }
+    }
+
+    for (key, value) in new_entries {
+        target_table.insert(key.clone(), json_value_to_toml(value)?);
+    }
+
     let rendered = toml::to_string_pretty(&host).map_err(|e| e.to_string())?;
     atomic_write(path, &rendered)
 }
@@ -159,12 +256,28 @@ pub fn apply_operations(artifacts: Vec<WriteOperation>) -> Result<Vec<String>, S
                     .ok_or_else(|| "missing JSON merge field".to_string())?,
                 &item.content,
             )?,
+            "merge_json_object_entries" => apply_merge_json_object_entries(
+                &path,
+                item.field
+                    .as_deref()
+                    .ok_or_else(|| "missing JSON merge field".to_string())?,
+                &item.content,
+                item.remove_keys.as_deref(),
+            )?,
             "merge_toml_field" => apply_merge_toml_field(
                 &path,
                 item.field
                     .as_deref()
                     .ok_or_else(|| "missing TOML merge field".to_string())?,
                 &item.content,
+            )?,
+            "merge_toml_table_entries" => apply_merge_toml_table_entries(
+                &path,
+                item.field
+                    .as_deref()
+                    .ok_or_else(|| "missing TOML merge field".to_string())?,
+                &item.content,
+                item.remove_keys.as_deref(),
             )?,
             other => return Err(format!("unsupported artifact mode: {other}")),
         }
@@ -216,8 +329,8 @@ pub fn rollback(backups: Vec<String>) -> Result<(), String> {
 mod tests {
     use super::{apply_operations, backup_file, resolve_relative_path};
     use crate::core::WriteOperation;
-    use std::fs;
     use std::ffi::OsString;
+    use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, OnceLock};
 
@@ -267,7 +380,9 @@ mod tests {
 
     #[test]
     fn preserves_unrelated_json_fields_when_merging() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = tempfile::tempdir().expect("tmpdir");
         let home = dir.path().join("home");
         fs::create_dir_all(&home).expect("create home");
@@ -283,6 +398,7 @@ mod tests {
             path: path.to_string_lossy().to_string(),
             mode: "merge_json_field".to_string(),
             field: Some("mcpServers".to_string()),
+            remove_keys: None,
             content: r#"{"new":{"command":"npx"}}"#.to_string(),
         }])
         .expect("apply");
@@ -294,8 +410,76 @@ mod tests {
     }
 
     #[test]
+    fn merges_json_object_entries_without_removing_unknown_servers() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let path = dir.path().join("claude.json");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+        fs::write(
+            &path,
+            r#"{"theme":"dark","mcpServers":{"unknown":{"command":"keep"},"managed":{"command":"old"}}}"#,
+        )
+        .expect("seed");
+
+        apply_operations(vec![WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_json_object_entries".to_string(),
+            field: Some("mcpServers".to_string()),
+            remove_keys: None,
+            content: r#"{"managed":{"command":"new"},"fresh":{"command":"npx"}}"#.to_string(),
+        }])
+        .expect("apply");
+        restore_test_runtime(previous_home, previous_dir);
+
+        let next = fs::read_to_string(&path).expect("read");
+        assert!(next.contains("\"theme\": \"dark\""));
+        assert!(next.contains("\"unknown\""));
+        assert!(next.contains("\"managed\""));
+        assert!(next.contains("\"fresh\""));
+        assert!(!next.contains("\"command\": \"old\""));
+    }
+
+    #[test]
+    fn removes_selected_json_object_entries_before_merging() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let path = dir.path().join("claude.json");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+        fs::write(
+            &path,
+            r#"{"mcpServers":{"unknown":{"command":"keep"},"legacy":{"command":"legacy"}}}"#,
+        )
+        .expect("seed");
+
+        apply_operations(vec![WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_json_object_entries".to_string(),
+            field: Some("mcpServers".to_string()),
+            remove_keys: Some(vec!["legacy".to_string(), "managed".to_string()]),
+            content: r#"{"managed":{"command":"new"}}"#.to_string(),
+        }])
+        .expect("apply");
+        restore_test_runtime(previous_home, previous_dir);
+
+        let next = fs::read_to_string(&path).expect("read");
+        assert!(next.contains("\"unknown\""));
+        assert!(next.contains("\"managed\""));
+        assert!(!next.contains("\"legacy\""));
+    }
+
+    #[test]
     fn preserves_unrelated_toml_fields_when_merging() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = tempfile::tempdir().expect("tmpdir");
         let home = dir.path().join("home");
         fs::create_dir_all(&home).expect("create home");
@@ -307,6 +491,7 @@ mod tests {
             path: path.to_string_lossy().to_string(),
             mode: "merge_toml_field".to_string(),
             field: Some("mcp_servers".to_string()),
+            remove_keys: None,
             content: r#"{"playwright":{"command":"npx","args":["@playwright/mcp@latest"]}}"#
                 .to_string(),
         }])
@@ -319,8 +504,43 @@ mod tests {
     }
 
     #[test]
+    fn merges_toml_table_entries_without_removing_unknown_servers() {
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let dir = tempfile::tempdir().expect("tmpdir");
+        let home = dir.path().join("home");
+        fs::create_dir_all(&home).expect("create home");
+        let path = dir.path().join("config.toml");
+        let (previous_home, previous_dir) = set_test_runtime(&home, dir.path());
+        fs::write(
+            &path,
+            "[mcp_servers.unknown]\ncommand = \"keep\"\n\n[mcp_servers.managed]\ncommand = \"old\"\n",
+        )
+        .expect("seed");
+
+        apply_operations(vec![WriteOperation {
+            path: path.to_string_lossy().to_string(),
+            mode: "merge_toml_table_entries".to_string(),
+            field: Some("mcp_servers".to_string()),
+            remove_keys: Some(vec!["managed".to_string()]),
+            content: r#"{"managed":{"command":"new"},"fresh":{"command":"npx"}}"#.to_string(),
+        }])
+        .expect("apply");
+        restore_test_runtime(previous_home, previous_dir);
+
+        let next = fs::read_to_string(&path).expect("read");
+        assert!(next.contains("[mcp_servers.unknown]"));
+        assert!(next.contains("[mcp_servers.managed]"));
+        assert!(next.contains("[mcp_servers.fresh]"));
+        assert!(!next.contains("command = \"old\""));
+    }
+
+    #[test]
     fn resolves_relative_paths_inside_app_data_dir() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let temp = tempfile::tempdir().expect("tmpdir");
         let home = temp.path().join("home");
         let workspace = temp.path().join("workspace");
@@ -341,7 +561,9 @@ mod tests {
 
     #[test]
     fn writes_backups_inside_app_data_dir() {
-        let _guard = env_lock().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _guard = env_lock()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let temp = tempfile::tempdir().expect("tmpdir");
         let home = temp.path().join("home");
         let workspace = temp.path().join("workspace");

@@ -138,18 +138,22 @@ fn parse_server(id: &str, input: &Map<String, Value>) -> Result<MCPServer, Strin
         .or_else(|| input.get("httpUrl").and_then(Value::as_str))
         .or_else(|| input.get("serverUrl").and_then(Value::as_str));
 
+    let explicit_remote_type = match input.get("type").and_then(Value::as_str) {
+        Some("http") => Some("http"),
+        Some("sse") => Some("sse"),
+        Some("streamable-http") => Some("streamable-http"),
+        _ => None,
+    };
+
     let transport = if let Some(url) = http_url {
         TransportSpec {
-            kind: "http".to_string(),
+            kind: explicit_remote_type.unwrap_or("http").to_string(),
             url: Some(url.to_string()),
         }
-    } else if matches!(
-        input.get("type").and_then(Value::as_str),
-        Some("http") | Some("sse") | Some("streamable-http")
-    ) {
+    } else if let Some(kind) = explicit_remote_type {
         TransportSpec {
-            kind: "http".to_string(),
-            url: http_url.map(ToString::to_string),
+            kind: kind.to_string(),
+            url: None,
         }
     } else {
         TransportSpec {
@@ -547,5 +551,20 @@ args = ["@playwright/mcp@latest"]
             Some("https://mcp.linear.app/sse")
         );
         assert!(!parsed.servers[0].enabled);
+    }
+
+    #[test]
+    fn preserves_explicit_remote_transport_types() {
+        let parsed = parse_mcp_json(
+            r#"{
+                "mcpServers": {
+                    "linear": {"url":"https://mcp.linear.app/sse","type":"sse"},
+                    "notion": {"url":"https://mcp.notion.com/mcp","type":"streamable-http"}
+                }
+            }"#,
+        );
+        assert!(parsed.errors.is_empty());
+        assert_eq!(parsed.servers[0].transport.kind, "sse");
+        assert_eq!(parsed.servers[1].transport.kind, "streamable-http");
     }
 }

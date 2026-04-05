@@ -5,10 +5,11 @@ import { Dashboard } from './components/Dashboard'
 import { SettingsPage } from './components/SettingsPage'
 import { ServerEditor } from './components/ServerEditor'
 import { ToastViewport } from './components/ToastViewport'
+import { UpdateProgressWindow } from './components/UpdateProgressWindow'
 import { mapConfigToWorkspaceView, type FeedbackItem } from './view-models/workspace'
 import './i18n'
 import { SUPPORTED_APPS, type ImportDetectedResult, type MCPConfig, type MCPServer, type SupportedApp } from './types/config'
-import { readAutoSyncOnLaunchPreference, saveAutoSyncOnLaunchPreference } from './services/appPreferences'
+import { readAutoImportOnLaunchPreference, saveAutoImportOnLaunchPreference } from './services/appPreferences'
 import { applyConfig, detectInstalledApps, importDetectedConfigs, loadConfig, rollback, saveConfig } from './services/configService'
 import { areConfigsEquivalent } from './services/configSync'
 import { openRepositoryLink } from './services/externalLinks'
@@ -17,10 +18,20 @@ import { mergeServerIntoConfig, shouldPromptForPendingChanges } from './services
 import { evaluateApplyRisks } from './services/risk'
 import { isDesktopRuntime } from './services/runtime'
 import { FALLBACK_APP_VERSION, loadAppVersion } from './services/appVersion'
-import { checkForUpdatesAndPrompt } from './services/updater'
+import {
+  checkForUpdatesAndPrompt,
+  getUpdateState,
+  hasVisibleUpdateProgressWindow,
+  installDownloadedUpdate,
+  subscribeToUpdateState,
+  syncUpdateStateToWindow,
+} from './services/updater'
+import { UPDATE_INSTALL_REQUEST_EVENT, UPDATE_SYNC_REQUEST_EVENT } from './services/updaterEvents'
 import { deriveVisibleApps } from './services/visibleApps'
+import { resolveWindowSurface } from './services/windowSurface'
 import {
   deleteServerFromConfig,
+  importConfigOnLaunch,
   persistImportedConfig,
   saveAndSyncConfig,
   toggleServerAppInConfig,
@@ -71,9 +82,9 @@ function detectPlatform(): 'macos' | 'windows' | 'linux' | 'unknown' {
   return 'unknown'
 }
 
-export default function App() {
+function MainApp() {
   const { t, i18n } = useTranslation()
-  const [autoSyncOnLaunch, setAutoSyncOnLaunch] = useState(readAutoSyncOnLaunchPreference)
+  const [autoImportOnLaunch, setAutoImportOnLaunch] = useState(readAutoImportOnLaunchPreference)
   const [theme, setTheme] = useState<ThemeMode>(readThemePreference)
   const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(readSystemTheme)
   const [platform] = useState(detectPlatform)
@@ -87,6 +98,7 @@ export default function App() {
   const [visibleApps, setVisibleApps] = useState<SupportedApp[]>([...SUPPORTED_APPS])
   const [editorDirty, setEditorDirty] = useState(false)
   const closeConfirmedRef = useRef(false)
+  const updateStateRef = useRef(getUpdateState())
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -131,6 +143,31 @@ export default function App() {
   const dismissFeedback = (id: string) => {
     setFeedbacks((current) => current.filter((item) => item.id !== id))
   }
+
+  useEffect(() => {
+    const unsubscribe = subscribeToUpdateState((state) => {
+      const previous = updateStateRef.current
+      updateStateRef.current = state
+
+      if (state.phase === 'downloaded' && previous.phase !== 'downloaded' && state.targetVersion) {
+        void hasVisibleUpdateProgressWindow().then((visible) => {
+          if (!visible) {
+            pushFeedback('success', t('updateReadyBackground', { version: state.targetVersion }))
+          }
+        })
+      }
+
+      if (state.phase === 'error' && state.error && previous.error !== state.error) {
+        void hasVisibleUpdateProgressWindow().then((visible) => {
+          if (!visible) {
+            pushFeedback('error', t('updateCheckFailedDetail', { error: state.error }))
+          }
+        })
+      }
+    })
+
+    return unsubscribe
+  }, [t])
 
   const clearEditorState = () => {
     setEditingServer(null)
@@ -219,13 +256,18 @@ export default function App() {
         setConfig(loaded)
         setFeedbacks([])
 
-        if (readAutoSyncOnLaunchPreference()) {
+        if (readAutoImportOnLaunchPreference()) {
           try {
-            const result = await importDetectedConfigs()
+            const result = await importConfigOnLaunch({
+              autoImportOnLaunch: true,
+              importDetectedConfigs,
+            })
             if (!alive) {
               return
             }
-            await applyImportResult(result, loaded, 'startup')
+            if (result) {
+              await applyImportResult(result, loaded, 'startup')
+            }
           } catch (error) {
             if (!alive) {
               return
@@ -327,6 +369,46 @@ export default function App() {
       unlisten?.()
     }
   }, [editorDirty, t, view])
+
+  useEffect(() => {
+    if (!isDesktopRuntime()) {
+      return
+    }
+
+    let disposed = false
+    let syncCleanup: (() => void) | undefined
+    let installCleanup: (() => void) | undefined
+
+    void getCurrentWindow()
+      .listen(UPDATE_SYNC_REQUEST_EVENT, () => {
+        void syncUpdateStateToWindow()
+      })
+      .then((cleanup) => {
+        if (disposed) {
+          cleanup()
+          return
+        }
+        syncCleanup = cleanup
+      })
+
+    void getCurrentWindow()
+      .listen(UPDATE_INSTALL_REQUEST_EVENT, () => {
+        void installDownloadedUpdate()
+      })
+      .then((cleanup) => {
+        if (disposed) {
+          cleanup()
+          return
+        }
+        installCleanup = cleanup
+      })
+
+    return () => {
+      disposed = true
+      syncCleanup?.()
+      installCleanup?.()
+    }
+  }, [])
 
   const workspace = useMemo(() => mapConfigToWorkspaceView(config, visibleApps, t), [config, t, visibleApps])
 
@@ -528,9 +610,9 @@ export default function App() {
     navigateToView('dashboard')
   }
 
-  const handleAutoSyncOnLaunchChange = (enabled: boolean) => {
-    setAutoSyncOnLaunch(enabled)
-    saveAutoSyncOnLaunchPreference(enabled)
+  const handleAutoImportOnLaunchChange = (enabled: boolean) => {
+    setAutoImportOnLaunch(enabled)
+    saveAutoImportOnLaunchPreference(enabled)
   }
 
   const isBusy = actionState !== 'idle'
@@ -550,12 +632,12 @@ export default function App() {
       ) : view === 'settings' ? (
         <SettingsPage
           appVersion={appVersion}
-          autoSyncOnLaunch={autoSyncOnLaunch}
+          autoImportOnLaunch={autoImportOnLaunch}
           busy={isBusy}
           checkingUpdates={actionState === 'checking-updates'}
           language={i18n.language}
           onOpenRepository={() => void handleOpenRepository()}
-          onAutoSyncOnLaunchChange={handleAutoSyncOnLaunchChange}
+          onAutoImportOnLaunchChange={handleAutoImportOnLaunchChange}
           theme={theme}
           onBack={() => navigateToView('dashboard')}
           onCheckUpdates={() => void handleCheckUpdates()}
@@ -581,4 +663,34 @@ export default function App() {
       )}
     </>
   )
+}
+
+function UpdateProgressWindowApp() {
+  const [theme] = useState<ThemeMode>(readThemePreference)
+  const [systemTheme, setSystemTheme] = useState<'light' | 'dark'>(readSystemTheme)
+  const [platform] = useState(detectPlatform)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = () => setSystemTheme(media.matches ? 'dark' : 'light')
+    handleChange()
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [])
+
+  useEffect(() => {
+    const nextTheme = theme === 'system' ? systemTheme : theme
+    document.documentElement.setAttribute('data-theme', nextTheme)
+    document.documentElement.setAttribute('data-platform', platform)
+  }, [platform, systemTheme, theme])
+
+  return <UpdateProgressWindow />
+}
+
+export default function App() {
+  return resolveWindowSurface() === 'updater-progress' ? <UpdateProgressWindowApp /> : <MainApp />
 }

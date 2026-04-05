@@ -1,4 +1,4 @@
-use crate::adapters::{AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app, extract_claude_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
@@ -76,39 +76,22 @@ impl AppAdapter for ClaudeCodeAdapter {
         }
     }
 
-    fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
-        let mut servers = serde_json::Map::new();
-        for server in &config.servers {
-            if server.enabled
-                && server
-                    .apps
-                    .get(&SupportedApp::ClaudeCode)
-                    .copied()
-                    .unwrap_or(false)
-            {
-                let value = if server.transport.kind == "stdio" {
-                    serde_json::json!({
-                        "command": server.command.as_ref().map(|c| c.program.clone()).unwrap_or_default(),
-                        "args": server.command.as_ref().map(|c| c.args.clone()).unwrap_or_default(),
-                        "env": server.command.as_ref().map(|c| c.env.clone()).unwrap_or_default()
-                    })
-                } else {
-                    serde_json::json!({ "url": server.transport.url.clone().unwrap_or_default() })
-                };
-                servers.insert(server.id.clone(), value);
-            }
-        }
-
-        WriteOperation {
-            path: ctx
-                .user_app_config_path(SupportedApp::ClaudeCode)
+    fn plan_apply(
+        &self,
+        ctx: &PlatformContext,
+        config: &MCPConfig,
+        previous_config: Option<&MCPConfig>,
+    ) -> WriteOperation {
+        managed_json_field_write(
+            ctx.user_app_config_path(SupportedApp::ClaudeCode)
                 .to_string_lossy()
                 .to_string(),
-            mode: "merge_json_field".to_string(),
-            field: Some("mcpServers".to_string()),
-            content: serde_json::to_string(&serde_json::Value::Object(servers))
-                .expect("serialize claude"),
-        }
+            "mcpServers",
+            standard_mcp_servers(config, SupportedApp::ClaudeCode),
+            SupportedApp::ClaudeCode,
+            config,
+            previous_config,
+        )
     }
 }
 
@@ -118,6 +101,7 @@ mod tests {
     use crate::adapters::AppAdapter;
     use crate::core::{empty_apps, MCPConfig, MCPServer, SupportedApp, TransportSpec};
     use crate::platform::{PlatformContext, PlatformOs};
+    use serde_json::Value;
     use std::collections::HashMap;
     use std::path::PathBuf;
 
@@ -142,9 +126,13 @@ mod tests {
     }
 
     #[test]
-    fn plans_claude_merge() {
-        let mut apps = empty_apps();
-        apps.insert(SupportedApp::ClaudeCode, true);
+    fn plans_claude_safe_merge_and_tracks_managed_ids() {
+        let mut previous_apps = empty_apps();
+        previous_apps.insert(SupportedApp::ClaudeCode, true);
+
+        let mut current_apps = empty_apps();
+        current_apps.insert(SupportedApp::ClaudeCode, true);
+
         let op = ClaudeCodeAdapter.plan_apply(
             &ctx(),
             &MCPConfig {
@@ -164,11 +152,86 @@ mod tests {
                         args: vec!["@playwright/mcp@latest".to_string()],
                         env: HashMap::new(),
                     }),
-                    apps,
+                    apps: current_apps,
                 }],
             },
+            Some(&MCPConfig {
+                version: 1,
+                servers: vec![MCPServer {
+                    description: None,
+                    homepage: None,
+                    id: "legacy".to_string(),
+                    name: "Legacy".to_string(),
+                    enabled: true,
+                    transport: TransportSpec {
+                        kind: "stdio".to_string(),
+                        url: None,
+                    },
+                    command: Some(crate::core::CommandSpec {
+                        program: "uvx".to_string(),
+                        args: vec!["legacy-server".to_string()],
+                        env: HashMap::new(),
+                    }),
+                    apps: previous_apps,
+                }],
+            }),
         );
-        assert_eq!(op.mode, "merge_json_field");
+        assert_eq!(op.mode, "merge_json_object_entries");
         assert_eq!(op.field.as_deref(), Some("mcpServers"));
+        assert_eq!(
+            op.remove_keys.as_deref(),
+            Some(&["legacy".to_string(), "playwright".to_string()][..])
+        );
+    }
+
+    #[test]
+    fn writes_transport_types_for_claude_code_servers() {
+        let mut apps = empty_apps();
+        apps.insert(SupportedApp::ClaudeCode, true);
+
+        let op = ClaudeCodeAdapter.plan_apply(
+            &ctx(),
+            &MCPConfig {
+                version: 1,
+                servers: vec![
+                    MCPServer {
+                        description: None,
+                        homepage: None,
+                        id: "playwright".to_string(),
+                        name: "Playwright".to_string(),
+                        enabled: true,
+                        transport: TransportSpec {
+                            kind: "stdio".to_string(),
+                            url: None,
+                        },
+                        command: Some(crate::core::CommandSpec {
+                            program: "npx".to_string(),
+                            args: vec!["@playwright/mcp@latest".to_string()],
+                            env: HashMap::new(),
+                        }),
+                        apps: apps.clone(),
+                    },
+                    MCPServer {
+                        description: None,
+                        homepage: None,
+                        id: "linear".to_string(),
+                        name: "Linear".to_string(),
+                        enabled: true,
+                        transport: TransportSpec {
+                            kind: "sse".to_string(),
+                            url: Some("https://mcp.linear.app/sse".to_string()),
+                        },
+                        command: None,
+                        apps,
+                    },
+                ],
+            },
+            None,
+        );
+
+        let payload: Value = serde_json::from_str(&op.content).expect("payload");
+        assert_eq!(payload["playwright"]["type"], "stdio");
+        assert_eq!(payload["linear"]["type"], "sse");
+        assert_eq!(payload["linear"]["url"], "https://mcp.linear.app/sse");
     }
 }

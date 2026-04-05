@@ -1,4 +1,4 @@
-use crate::adapters::{standard_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app, parse_mcp_json};
 use crate::platform::PlatformContext;
@@ -45,19 +45,22 @@ impl AppAdapter for AntigravityAdapter {
         }
     }
 
-    fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
-        WriteOperation {
-            path: ctx
-                .user_app_config_path(self.app())
+    fn plan_apply(
+        &self,
+        ctx: &PlatformContext,
+        config: &MCPConfig,
+        previous_config: Option<&MCPConfig>,
+    ) -> WriteOperation {
+        managed_json_field_write(
+            ctx.user_app_config_path(self.app())
                 .to_string_lossy()
                 .to_string(),
-            mode: "replace_json".to_string(),
-            field: None,
-            content: serde_json::to_string(&serde_json::json!({
-                "mcpServers": standard_mcp_servers(config, self.app())
-            }))
-            .expect("serialize antigravity"),
-        }
+            "mcpServers",
+            standard_mcp_servers(config, self.app()),
+            self.app(),
+            config,
+            previous_config,
+        )
     }
 }
 
@@ -111,8 +114,9 @@ mod tests {
                     homepage: None,
                 }],
             },
+            None,
         );
-        assert_eq!(op.mode, "replace_json");
-        assert!(op.content.contains("\"mcpServers\""));
+        assert_eq!(op.mode, "merge_json_object_entries");
+        assert!(op.content.contains("linear"));
     }
 }

@@ -1,4 +1,4 @@
-use crate::adapters::{AppAdapter, ParsedSources};
+use crate::adapters::{managed_toml_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app, extract_codex_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
@@ -76,39 +76,22 @@ impl AppAdapter for CodexAdapter {
         }
     }
 
-    fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
-        let mut servers = serde_json::Map::new();
-        for server in &config.servers {
-            if server.enabled
-                && server
-                    .apps
-                    .get(&SupportedApp::Codex)
-                    .copied()
-                    .unwrap_or(false)
-            {
-                let value = if server.transport.kind == "stdio" {
-                    serde_json::json!({
-                        "command": server.command.as_ref().map(|c| c.program.clone()).unwrap_or_default(),
-                        "args": server.command.as_ref().map(|c| c.args.clone()).unwrap_or_default(),
-                        "env": server.command.as_ref().map(|c| c.env.clone()).unwrap_or_default()
-                    })
-                } else {
-                    serde_json::json!({ "url": server.transport.url.clone().unwrap_or_default() })
-                };
-                servers.insert(server.id.clone(), value);
-            }
-        }
-
-        WriteOperation {
-            path: ctx
-                .user_app_config_path(SupportedApp::Codex)
+    fn plan_apply(
+        &self,
+        ctx: &PlatformContext,
+        config: &MCPConfig,
+        previous_config: Option<&MCPConfig>,
+    ) -> WriteOperation {
+        managed_toml_field_write(
+            ctx.user_app_config_path(SupportedApp::Codex)
                 .to_string_lossy()
                 .to_string(),
-            mode: "merge_toml_field".to_string(),
-            field: Some("mcp_servers".to_string()),
-            content: serde_json::to_string(&serde_json::Value::Object(servers))
-                .expect("serialize codex"),
-        }
+            "mcp_servers",
+            standard_mcp_servers(config, SupportedApp::Codex),
+            SupportedApp::Codex,
+            config,
+            previous_config,
+        )
     }
 }
 
@@ -170,8 +153,9 @@ args = ["@playwright/mcp@latest"]
                     apps,
                 }],
             },
+            None,
         );
-        assert_eq!(op.mode, "merge_toml_field");
+        assert_eq!(op.mode, "merge_toml_table_entries");
         assert_eq!(op.field.as_deref(), Some("mcp_servers"));
     }
 }

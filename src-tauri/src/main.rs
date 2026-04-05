@@ -8,7 +8,7 @@ mod storage;
 
 use commands::{
     apply_config, detect_installed_apps, import_detected_configs, load_yaml_config,
-    open_releases_link, open_repository_link, rollback_from_backups, save_yaml_config,
+    open_releases_link, open_repository_link, restart_app, rollback_from_backups, save_yaml_config,
 };
 
 fn main() {
@@ -24,7 +24,8 @@ fn main() {
             import_detected_configs,
             detect_installed_apps,
             apply_config,
-            rollback_from_backups
+            rollback_from_backups,
+            restart_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -135,13 +135,16 @@ export interface ApplyResult {
   backups: string[]
 }
 
-export async function applyConfig(config: MCPConfig): Promise<ApplyResult> {
+export async function applyConfig(
+  config: MCPConfig,
+  previousConfig: MCPConfig = config,
+): Promise<ApplyResult> {
   if (!isDesktopRuntime()) {
     window.localStorage.setItem(BROWSER_CONFIG_KEY, JSON.stringify(config))
     return { backups: ['browser-preview-backup'] }
   }
 
-  return invoke<ApplyResult>('apply_config', { config })
+  return invoke<ApplyResult>('apply_config', { config, previousConfig })
 }
 
 export async function rollback(backups: string[]): Promise<void> {

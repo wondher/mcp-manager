@@ -1,4 +1,4 @@
-use crate::adapters::{standard_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app, extract_json_field_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
@@ -81,17 +81,22 @@ impl AppAdapter for GithubCopilotAdapter {
         }
     }
 
-    fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
-        WriteOperation {
-            path: ctx
-                .user_app_config_path(self.app())
+    fn plan_apply(
+        &self,
+        ctx: &PlatformContext,
+        config: &MCPConfig,
+        previous_config: Option<&MCPConfig>,
+    ) -> WriteOperation {
+        managed_json_field_write(
+            ctx.user_app_config_path(self.app())
                 .to_string_lossy()
                 .to_string(),
-            mode: "merge_json_field".to_string(),
-            field: Some("mcpServers".to_string()),
-            content: serde_json::to_string(&standard_mcp_servers(config, self.app()))
-                .expect("serialize github copilot"),
-        }
+            "mcpServers",
+            standard_mcp_servers(config, self.app()),
+            self.app(),
+            config,
+            previous_config,
+        )
     }
 }
 
@@ -101,6 +106,7 @@ mod tests {
     use crate::adapters::AppAdapter;
     use crate::core::{empty_apps, MCPConfig, MCPServer, SupportedApp, TransportSpec};
     use crate::platform::{PlatformContext, PlatformOs};
+    use serde_json::Value;
     use std::collections::HashMap;
     use std::path::PathBuf;
 
@@ -146,8 +152,61 @@ mod tests {
                     homepage: None,
                 }],
             },
+            None,
         );
-        assert_eq!(op.mode, "merge_json_field");
+        assert_eq!(op.mode, "merge_json_object_entries");
         assert_eq!(op.field.as_deref(), Some("mcpServers"));
+    }
+
+    #[test]
+    fn writes_copilot_transport_types_and_tools() {
+        let mut apps = empty_apps();
+        apps.insert(SupportedApp::GithubCopilot, true);
+
+        let op = GithubCopilotAdapter.plan_apply(
+            &ctx(),
+            &MCPConfig {
+                version: 1,
+                servers: vec![
+                    MCPServer {
+                        id: "github".to_string(),
+                        name: "GitHub".to_string(),
+                        enabled: true,
+                        transport: TransportSpec {
+                            kind: "stdio".to_string(),
+                            url: None,
+                        },
+                        command: Some(crate::core::CommandSpec {
+                            program: "uvx".to_string(),
+                            args: vec!["mcp-server-github".to_string()],
+                            env: HashMap::new(),
+                        }),
+                        apps: apps.clone(),
+                        description: None,
+                        homepage: None,
+                    },
+                    MCPServer {
+                        id: "linear".to_string(),
+                        name: "Linear".to_string(),
+                        enabled: true,
+                        transport: TransportSpec {
+                            kind: "sse".to_string(),
+                            url: Some("https://mcp.linear.app/sse".to_string()),
+                        },
+                        command: None,
+                        apps,
+                        description: None,
+                        homepage: None,
+                    },
+                ],
+            },
+            None,
+        );
+
+        let payload: Value = serde_json::from_str(&op.content).expect("payload");
+        assert_eq!(payload["github"]["type"], "stdio");
+        assert_eq!(payload["github"]["tools"][0], "*");
+        assert_eq!(payload["linear"]["type"], "sse");
+        assert_eq!(payload["linear"]["tools"][0], "*");
     }
 }

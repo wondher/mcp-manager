@@ -1,4 +1,4 @@
-use crate::adapters::{AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_write, standard_mcp_servers, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app, parse_mcp_json};
 use crate::platform::PlatformContext;
@@ -53,39 +53,22 @@ impl AppAdapter for VSCodeAdapter {
         }
     }
 
-    fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
-        let mut servers = serde_json::Map::new();
-        for server in &config.servers {
-            if server.enabled
-                && server
-                    .apps
-                    .get(&SupportedApp::Vscode)
-                    .copied()
-                    .unwrap_or(false)
-            {
-                let value = if server.transport.kind == "stdio" {
-                    serde_json::json!({
-                        "command": server.command.as_ref().map(|c| c.program.clone()).unwrap_or_default(),
-                        "args": server.command.as_ref().map(|c| c.args.clone()).unwrap_or_default(),
-                        "env": server.command.as_ref().map(|c| c.env.clone()).unwrap_or_default()
-                    })
-                } else {
-                    serde_json::json!({ "url": server.transport.url.clone().unwrap_or_default() })
-                };
-                servers.insert(server.id.clone(), value);
-            }
-        }
-
-        WriteOperation {
-            path: ctx
-                .user_app_config_path(SupportedApp::Vscode)
+    fn plan_apply(
+        &self,
+        ctx: &PlatformContext,
+        config: &MCPConfig,
+        previous_config: Option<&MCPConfig>,
+    ) -> WriteOperation {
+        managed_json_field_write(
+            ctx.user_app_config_path(SupportedApp::Vscode)
                 .to_string_lossy()
                 .to_string(),
-            mode: "replace_json".to_string(),
-            field: None,
-            content: serde_json::to_string(&serde_json::json!({ "servers": servers }))
-                .expect("serialize vscode"),
-        }
+            "servers",
+            standard_mcp_servers(config, SupportedApp::Vscode),
+            SupportedApp::Vscode,
+            config,
+            previous_config,
+        )
     }
 }
 
@@ -140,8 +123,9 @@ mod tests {
                     apps,
                 }],
             },
+            None,
         );
-        assert_eq!(op.mode, "replace_json");
-        assert!(op.content.contains("\"servers\""));
+        assert_eq!(op.mode, "merge_json_object_entries");
+        assert!(op.content.contains("github"));
     }
 }

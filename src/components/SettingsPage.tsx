@@ -7,12 +7,12 @@ import { Tooltip } from './Tooltip'
 
 interface SettingsPageProps {
   appVersion: string
-  autoSyncOnLaunch: boolean
+  autoImportOnLaunch: boolean
   busy: boolean
   checkingUpdates: boolean
   language: string
   onOpenRepository: () => void
-  onAutoSyncOnLaunchChange: (enabled: boolean) => void
+  onAutoImportOnLaunchChange: (enabled: boolean) => void
   theme: 'light' | 'dark' | 'system'
   onBack: () => void
   onCheckUpdates: () => void
@@ -33,12 +33,12 @@ function SettingsItemLabel({ icon, label }: { icon: ReactNode; label: string }) 
 
 export function SettingsPage({
   appVersion,
-  autoSyncOnLaunch,
+  autoImportOnLaunch,
   busy,
   checkingUpdates,
   language,
   onOpenRepository,
-  onAutoSyncOnLaunchChange,
+  onAutoImportOnLaunchChange,
   theme,
   onBack,
   onCheckUpdates,
@@ -59,7 +59,7 @@ export function SettingsPage({
         id: 'basic' as const,
         title: t('settingsGroupGeneral'),
         icon: <Boxes size={14} />,
-        keywords: [t('language'), t('theme'), t('settingsAutoSyncOnLaunch'), t('syncLocalConfig')]
+        keywords: [t('language'), t('theme'), t('settingsAutoImportOnLaunch'), t('syncLocalConfig')]
           .join(' ')
           .toLowerCase(),
       },
@@ -174,13 +174,13 @@ export function SettingsPage({
                   </div>
                 </div>
                 <div className="settings-item">
-                  <SettingsItemLabel icon={<RefreshCw size={14} />} label={t('settingsAutoSyncOnLaunch')} />
+                  <SettingsItemLabel icon={<RefreshCw size={14} />} label={t('settingsAutoImportOnLaunch')} />
                   <button
                     type="button"
-                    className={autoSyncOnLaunch ? 'switch-control settings-switch-compact checked' : 'switch-control settings-switch-compact'}
-                    onClick={() => onAutoSyncOnLaunchChange(!autoSyncOnLaunch)}
-                    aria-pressed={autoSyncOnLaunch}
-                    aria-label={t('settingsAutoSyncOnLaunch')}
+                    className={autoImportOnLaunch ? 'switch-control settings-switch-compact checked' : 'switch-control settings-switch-compact'}
+                    onClick={() => onAutoImportOnLaunchChange(!autoImportOnLaunch)}
+                    aria-pressed={autoImportOnLaunch}
+                    aria-label={t('settingsAutoImportOnLaunch')}
                   >
                     <span className="switch-thumb" />
                   </button>

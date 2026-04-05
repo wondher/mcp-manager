@@ -1,10 +1,15 @@
-import type { MCPConfig, SupportedApp } from '../types/config'
+import type { ImportDetectedResult, MCPConfig, SupportedApp } from '../types/config'
 
 interface SaveAndSyncConfigOptions {
-  applyConfig: (config: MCPConfig) => Promise<{ backups: string[] }>
+  applyConfig: (config: MCPConfig, previousConfig: MCPConfig) => Promise<{ backups: string[] }>
   nextConfig: MCPConfig
   previousConfig: MCPConfig
   saveConfig: (config: MCPConfig) => Promise<void>
+}
+
+interface ImportConfigOnLaunchOptions {
+  autoImportOnLaunch: boolean
+  importDetectedConfigs: () => Promise<ImportDetectedResult>
 }
 
 export async function saveAndSyncConfig({
@@ -16,7 +21,7 @@ export async function saveAndSyncConfig({
   await saveConfig(nextConfig)
 
   try {
-    return await applyConfig(nextConfig)
+    return await applyConfig(nextConfig, previousConfig)
   } catch (error) {
     await saveConfig(previousConfig)
     throw error
@@ -28,6 +33,17 @@ export async function persistImportedConfig(
   saveConfig: (config: MCPConfig) => Promise<void>,
 ): Promise<void> {
   await saveConfig(nextConfig)
+}
+
+export async function importConfigOnLaunch({
+  autoImportOnLaunch,
+  importDetectedConfigs,
+}: ImportConfigOnLaunchOptions): Promise<ImportDetectedResult | null> {
+  if (!autoImportOnLaunch) {
+    return null
+  }
+
+  return await importDetectedConfigs()
 }
 
 export function deleteServerFromConfig(config: MCPConfig, serverId: string): MCPConfig {

@@ -1,4 +1,4 @@
-use crate::adapters::{opencode_mcp_servers, AppAdapter, ParsedSources};
+use crate::adapters::{managed_json_field_write, opencode_mcp_servers, AppAdapter, ParsedSources};
 use crate::core::{LocalConfigSource, MCPConfig, SupportedApp, WriteOperation};
 use crate::parser::{enable_servers_for_app, extract_opencode_mcp_json, parse_mcp_json};
 use crate::platform::PlatformContext;
@@ -77,17 +77,22 @@ impl AppAdapter for OpenCodeAdapter {
         }
     }
 
-    fn plan_apply(&self, ctx: &PlatformContext, config: &MCPConfig) -> WriteOperation {
-        WriteOperation {
-            path: ctx
-                .user_app_config_path(self.app())
+    fn plan_apply(
+        &self,
+        ctx: &PlatformContext,
+        config: &MCPConfig,
+        previous_config: Option<&MCPConfig>,
+    ) -> WriteOperation {
+        managed_json_field_write(
+            ctx.user_app_config_path(self.app())
                 .to_string_lossy()
                 .to_string(),
-            mode: "merge_json_field".to_string(),
-            field: Some("mcp".to_string()),
-            content: serde_json::to_string(&opencode_mcp_servers(config, self.app()))
-                .expect("serialize opencode"),
-        }
+            "mcp",
+            opencode_mcp_servers(config, self.app()),
+            self.app(),
+            config,
+            previous_config,
+        )
     }
 }
 
@@ -146,8 +151,9 @@ mod tests {
                     homepage: None,
                 }],
             },
+            None,
         );
-        assert_eq!(op.mode, "merge_json_field");
+        assert_eq!(op.mode, "merge_json_object_entries");
         assert_eq!(op.field.as_deref(), Some("mcp"));
     }
 }
