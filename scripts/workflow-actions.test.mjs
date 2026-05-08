@@ -11,14 +11,14 @@ function readWorkflow(fileName) {
 
 describe('GitHub workflow action runtimes', () => {
   it('uses a Node24-compatible major for actions/checkout', () => {
-    for (const fileName of ['ci.yml', 'release.yml']) {
+    for (const fileName of ['ci.yml', 'homebrew.yml', 'release.yml']) {
       const contents = readWorkflow(fileName)
       expect(contents).toMatch(/uses:\s+actions\/checkout@v([5-9]|\d{2,})\b/)
     }
   })
 
   it('uses a Node24-compatible major for actions/setup-node', () => {
-    for (const fileName of ['ci.yml', 'release.yml']) {
+    for (const fileName of ['ci.yml', 'homebrew.yml', 'release.yml']) {
       const contents = readWorkflow(fileName)
       expect(contents).toMatch(/uses:\s+actions\/setup-node@v([5-9]|\d{2,})\b/)
     }

@@ -32,6 +32,8 @@ The generated assets are uploaded to a GitHub Release automatically. Tauri also 
   2. `publish-tauri` keeps the current cross-platform build matrix and uploads only platform assets by `releaseId`.
   3. `publish-updater` uploads `latest.json` once after all matrix uploads complete.
   The matrix explicitly builds `app,dmg` on macOS, `nsis,msi` for stable Windows x64 tags, `nsis` for Windows prerelease x64 and Windows arm64 tags, and `appimage,deb,rpm` on Linux.
+- `.github/workflows/homebrew.yml`
+  Runs after a stable GitHub Release is published. It downloads the macOS `.app.tar.gz` assets, computes their SHA-256 checksums, renders `Casks/mcp-manager.rb`, and pushes the result to `xjeway/homebrew-mcp-manager`.
 
 ## Required Repository Secrets
 
@@ -39,6 +41,10 @@ These are required if you want Tauri updater metadata and signed update bundles:
 
 - `TAURI_SIGNING_PRIVATE_KEY`
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+
+This is required if you want the published-release workflow to update the Homebrew tap:
+
+- `HOMEBREW_TAP_PAT`: a token with write access to `xjeway/homebrew-mcp-manager`
 
 Generate the updater key pair locally with:
 
@@ -113,6 +119,18 @@ Before shipping updater-enabled releases, set the updater public key:
 If the GitHub owner or repository name changes, update the endpoint URL accordingly.
 
 The workflow intentionally uploads `latest.json` only after every platform build finishes. This avoids multiple matrix jobs deleting and re-uploading the same `latest.json` release asset at the same time.
+
+## Homebrew Cask Publishing
+
+Stable releases are available through the project tap:
+
+```bash
+brew tap xjeway/mcp-manager
+brew install --cask mcp-manager
+brew upgrade --cask mcp-manager
+```
+
+The Homebrew workflow is intentionally separate from the tag-driven release workflow because a cask should only reference a published release. It runs on `release.published`, skips prereleases, requires both macOS app tarballs, and fails without changing the release if either asset or checksum step is missing.
 
 ## Release Process
 

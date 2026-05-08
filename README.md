@@ -49,8 +49,7 @@
 #### Homebrew
 
 ```bash
-# Coming soon
-brew tap xjeway/tap
+brew tap xjeway/mcp-manager
 brew install --cask mcp-manager
 brew update
 brew upgrade --cask mcp-manager
