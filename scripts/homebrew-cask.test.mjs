@@ -98,4 +98,33 @@ describe('homebrew cask helpers', () => {
     ).toBe('c'.repeat(64))
     expect(helpers.sha256FromAssetDigest({ digest: 'md5:not-supported' })).toBeNull()
   })
+
+  it('parses a release tag argument for manual workflow dispatch', async () => {
+    const helpers = await loadHomebrewHelpers()
+
+    expect(helpers).not.toBeNull()
+    expect(
+      helpers.parseArgs([
+        'node',
+        'scripts/homebrew-cask.mjs',
+        'publish',
+        '--tap-dir',
+        'tap',
+        '--owner',
+        'xjeway',
+        '--repo',
+        'mcp-manager',
+        '--tag',
+        'v0.1.6',
+      ]),
+    ).toEqual(
+      expect.objectContaining({
+        command: 'publish',
+        owner: 'xjeway',
+        repo: 'mcp-manager',
+        tag: 'v0.1.6',
+        tapDir: 'tap',
+      }),
+    )
+  })
 })

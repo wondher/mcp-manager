@@ -17,6 +17,13 @@ describe('Homebrew workflow structure', () => {
     expect(workflow.on.release.types).toEqual(['published'])
   })
 
+  it('can be manually dispatched for an existing release tag', () => {
+    const workflow = readWorkflow()
+
+    expect(workflow.on.workflow_dispatch.inputs.release_tag.required).toBe(true)
+    expect(workflow.on.workflow_dispatch.inputs.release_tag.description).toContain('v0.1.6')
+  })
+
   it('uses the tap PAT and updates the external cask repository', () => {
     const workflow = readWorkflow()
     const job = workflow.jobs['publish-homebrew-cask']
@@ -37,7 +44,8 @@ describe('Homebrew workflow structure', () => {
       steps.some(
         (step) =>
           typeof step.run === 'string' &&
-          step.run.includes('node scripts/homebrew-cask.mjs publish'),
+          step.run.includes('node scripts/homebrew-cask.mjs publish') &&
+          step.run.includes('--tag "$RELEASE_TAG"'),
       ),
     ).toBe(true)
   })

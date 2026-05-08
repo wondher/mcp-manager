@@ -73,12 +73,13 @@ export function sha256FromAssetDigest(asset) {
   return match ? match[1].toLowerCase() : null
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const args = {
     command: argv[2],
     owner: null,
     repo: null,
     event: process.env.GITHUB_EVENT_PATH,
+    tag: null,
     tapDir: 'tap',
   }
 
@@ -96,6 +97,9 @@ function parseArgs(argv) {
       index += 1
     } else if (arg === '--tap-dir') {
       args.tapDir = value
+      index += 1
+    } else if (arg === '--tag') {
+      args.tag = value
       index += 1
     } else {
       throw new Error(`Unknown argument: ${arg}`)
@@ -126,13 +130,34 @@ async function fetchJson(url, token) {
 }
 
 async function loadRelease({ eventPath, owner, repo }) {
-  const event = JSON.parse(fs.readFileSync(eventPath, 'utf8'))
+  const event = eventPath && fs.existsSync(eventPath) ? JSON.parse(fs.readFileSync(eventPath, 'utf8')) : {}
   const release = event.release
-  if (!release?.tag_name) {
+  if (!release?.tag_name || !release?.id) {
     throw new Error('GitHub release event payload is missing release.tag_name')
   }
 
   const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
+  const assets = await fetchJson(
+    `https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?per_page=100`,
+    token,
+  )
+
+  return {
+    ...release,
+    assets,
+  }
+}
+
+async function loadReleaseByTag({ owner, repo, tag }) {
+  if (!tag) {
+    throw new Error('Missing release tag. Pass --tag for manual dispatch.')
+  }
+
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
+  const release = await fetchJson(
+    `https://api.github.com/repos/${owner}/${repo}/releases/tags/${encodeURIComponent(tag)}`,
+    token,
+  )
   const assets = await fetchJson(
     `https://api.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?per_page=100`,
     token,
@@ -170,11 +195,17 @@ async function sha256ForAsset(asset) {
 }
 
 async function publish(args) {
-  const release = await loadRelease({
-    eventPath: args.event,
-    owner: args.owner,
-    repo: args.repo,
-  })
+  const release = args.tag
+    ? await loadReleaseByTag({
+        owner: args.owner,
+        repo: args.repo,
+        tag: args.tag,
+      })
+    : await loadRelease({
+        eventPath: args.event,
+        owner: args.owner,
+        repo: args.repo,
+      })
   const version = parseVersionFromTag(release.tag_name)
   const selected = collectMacosCaskAssets(release.assets)
   const assets = {
