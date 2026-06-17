@@ -28,6 +28,7 @@ describe('workspace view-models', () => {
               cline: false,
               windsurf: false,
               kiro: false,
+              crush: false,
             },
           },
         ],
@@ -64,6 +65,7 @@ describe('workspace view-models', () => {
         cline: false,
         windsurf: false,
         kiro: true,
+        crush: true,
       },
     })
 
@@ -101,6 +103,7 @@ describe('workspace view-models', () => {
               cline: false,
               windsurf: false,
               kiro: true,
+              crush: false,
             },
           },
         ],

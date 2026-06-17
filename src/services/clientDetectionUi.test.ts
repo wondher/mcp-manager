@@ -23,6 +23,7 @@ describe('clientDetectionUi', () => {
         'cline',
         'windsurf',
         'kiro',
+        'crush',
       ]),
     ).toBe(false)
   })

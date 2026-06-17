@@ -3,6 +3,7 @@ mod claude_code;
 mod claude_desktop;
 mod cline;
 mod codex;
+mod crush;
 mod cursor;
 mod gemini_cli;
 mod github_copilot;
@@ -23,6 +24,7 @@ pub use claude_code::ClaudeCodeAdapter;
 pub use claude_desktop::ClaudeDesktopAdapter;
 pub use cline::ClineAdapter;
 pub use codex::CodexAdapter;
+pub use crush::CrushAdapter;
 pub use cursor::CursorAdapter;
 pub use gemini_cli::GeminiCliAdapter;
 pub use github_copilot::GithubCopilotAdapter;
@@ -279,5 +281,6 @@ pub fn adapters() -> Vec<Box<dyn AppAdapter>> {
         Box::new(ClineAdapter),
         Box::new(WindsurfAdapter),
         Box::new(KiroAdapter),
+        Box::new(CrushAdapter),
     ]
 }

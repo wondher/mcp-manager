@@ -18,10 +18,11 @@ pub enum SupportedApp {
     Cline,
     Windsurf,
     Kiro,
+    Crush,
 }
 
 impl SupportedApp {
-    pub const ALL: [SupportedApp; 14] = [
+    pub const ALL: [SupportedApp; 15] = [
         SupportedApp::Vscode,
         SupportedApp::Cursor,
         SupportedApp::ClaudeCode,
@@ -36,6 +37,7 @@ impl SupportedApp {
         SupportedApp::Cline,
         SupportedApp::Windsurf,
         SupportedApp::Kiro,
+        SupportedApp::Crush,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -54,6 +56,7 @@ impl SupportedApp {
             SupportedApp::Cline => "cline",
             SupportedApp::Windsurf => "windsurf",
             SupportedApp::Kiro => "kiro",
+            SupportedApp::Crush => "crush",
         }
     }
 }
@@ -153,6 +156,7 @@ pub fn empty_apps() -> HashMap<SupportedApp, bool> {
         (SupportedApp::Cline, false),
         (SupportedApp::Windsurf, false),
         (SupportedApp::Kiro, false),
+        (SupportedApp::Crush, false),
     ])
 }
 

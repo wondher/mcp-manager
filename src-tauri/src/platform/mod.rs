@@ -102,6 +102,7 @@ impl PlatformContext {
                 .join(".cline/data/settings/cline_mcp_settings.json"),
             SupportedApp::Windsurf => self.home_dir.join(".codeium/windsurf/mcp_config.json"),
             SupportedApp::Kiro => self.home_dir.join(".kiro/settings/mcp.json"),
+            SupportedApp::Crush => self.home_dir.join(".config/crush/crush.json"),
         }
     }
 
@@ -168,6 +169,7 @@ impl PlatformContext {
                 &["Kiro.app"][..],
                 &["AppData/Local/Programs/Kiro/Kiro.exe"][..],
             ),
+            SupportedApp::Crush => (&["crush"][..], &[][..], &[][..]),
         };
 
         self.command_exists(commands)
@@ -267,7 +269,8 @@ impl PlatformContext {
             | SupportedApp::GeminiCli
             | SupportedApp::Antigravity
             | SupportedApp::QwenCode
-            | SupportedApp::Cline => {
+            | SupportedApp::Cline
+            | SupportedApp::Crush => {
                 vec![self.user_app_config_path(app).to_string_lossy().to_string()]
             }
             SupportedApp::GithubCopilot => vec![

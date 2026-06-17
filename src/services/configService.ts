@@ -36,6 +36,7 @@ function defaultConfig(): MCPConfig {
           cline: true,
           windsurf: true,
           kiro: true,
+          crush: true,
         },
       },
       {
@@ -58,6 +59,7 @@ function defaultConfig(): MCPConfig {
           cline: true,
           windsurf: true,
           kiro: true,
+          crush: true,
         },
       },
       {
@@ -85,6 +87,7 @@ function defaultConfig(): MCPConfig {
           cline: true,
           windsurf: true,
           kiro: true,
+          crush: true,
         },
       },
     ],

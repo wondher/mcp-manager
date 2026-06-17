@@ -1,0 +1,12 @@
+<svg height="1em" width="1em" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Crush</title>
+  <rect width="24" height="24" rx="6" fill="url(#crushGrad)" />
+  <path d="M12 4.5c.34 3.16 1.84 4.66 5 5-3.16.34-4.66 1.84-5 5-.34-3.16-1.84-4.66-5-5 3.16-.34 4.66-1.84 5-5z" fill="#fff" />
+  <path d="M17.8 12.9c.17 1.5.9 2.23 2.4 2.4-1.5.17-2.23.9-2.4 2.4-.17-1.5-.9-2.23-2.4-2.4 1.5-.17 2.23-.9 2.4-2.4z" fill="#fff" opacity="0.85" />
+  <defs>
+    <linearGradient id="crushGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A855F7" />
+      <stop offset="1" stop-color="#6D28D9" />
+    </linearGradient>
+  </defs>
+</svg>

@@ -62,6 +62,7 @@ function emptyApps(): MCPServer['apps'] {
     cline: false,
     windsurf: false,
     kiro: false,
+    crush: false,
   }
 }
 

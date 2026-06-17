@@ -200,6 +200,7 @@ make dev
 | Cline | ✅ | ✅ |
 | Windsurf | ✅ | ✅ |
 | Kiro | ✅ | ✅ |
+| Crush | ✅ | ✅ |
 | VS Code | ✅ | ✅ |
 
 ## How It Works
